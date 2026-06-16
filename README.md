@@ -57,3 +57,14 @@ Then reboot/redeploy the app.
 ## Safety switch
 
 The app starts in **Dry run only** mode. Turn it off in the sidebar when you are ready for Tony to save live updates.
+
+## Streamlit Cloud Playwright fix
+
+This version includes:
+
+- `packages.txt` for Chromium Linux dependencies
+- `setup.sh` to install the Playwright Chromium browser
+- runtime fallback install if Chromium is missing
+- Chromium launch flags for hosted Linux environments
+
+After pushing these files, redeploy/reboot the Streamlit app. If the app was already deployed, use **Manage app → Reboot app** or redeploy from GitHub so `packages.txt` and `setup.sh` are picked up.

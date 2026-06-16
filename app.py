@@ -1,4 +1,7 @@
 import os
+import sys
+import subprocess
+from pathlib import Path
 from datetime import datetime
 import streamlit as st
 
@@ -92,6 +95,22 @@ else:
     st.info("Credentials detected. Tony is ready to run. Dry run is ON by default.")
 
 
+def ensure_playwright_browser():
+    """Install Chromium at runtime when the deployment image has the Python package but not the browser binary."""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "playwright", "install", "chromium"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+        return result.returncode == 0, result.stdout[-3000:]
+    except Exception as exc:
+        return False, str(exc)
+
+
 def run_tony(base_url: str, incidents_url: str, username: str, password: str, response: str, headless: bool, dry_run: bool, max_tickets: int):
     if sync_playwright is None:
         return {
@@ -114,7 +133,24 @@ def run_tony(base_url: str, incidents_url: str, username: str, password: str, re
     ticket_refs = []
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless)
+        try:
+            browser = p.chromium.launch(
+                headless=headless,
+                args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+            )
+        except Exception as launch_exc:
+            ok, install_output = ensure_playwright_browser()
+            if not ok:
+                return {
+                    "status": "error",
+                    "message": "Chromium could not launch and automatic Playwright browser install failed. On Streamlit Cloud, add packages.txt and redeploy. Details: " + str(launch_exc),
+                    "install_output": install_output,
+                    "tickets": [],
+                }
+            browser = p.chromium.launch(
+                headless=headless,
+                args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+            )
         page = browser.new_page()
         try:
             report.append("Opening KOP Desk login page")
