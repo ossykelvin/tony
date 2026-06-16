@@ -9,6 +9,7 @@ try:
     from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 except Exception:
     sync_playwright = None
+    PlaywrightTimeoutError = TimeoutError
 
 APP_TITLE = os.getenv("APP_TITLE", "Tony - KOP Desk QA Agent")
 DEFAULT_HOLDING_RESPONSE = (
@@ -95,29 +96,44 @@ else:
     st.info("Credentials detected. Tony is ready to run. Dry run is ON by default.")
 
 
-def ensure_playwright_browser():
-    """Install Chromium at runtime when the deployment image has the Python package but not the browser binary."""
+def ensure_playwright_package_and_browser():
+    """Install Playwright package/browser at runtime if Streamlit deployment skipped browser setup."""
+    output = []
     try:
+        global sync_playwright, PlaywrightTimeoutError
+        if sync_playwright is None:
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "playwright==1.49.1"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=240, check=False,
+            )
+            output.append(result.stdout[-3000:])
+            if result.returncode != 0:
+                return False, "\n".join(output)
+            from playwright.sync_api import sync_playwright as sp, TimeoutError as pte
+            sync_playwright = sp
+            PlaywrightTimeoutError = pte
+
         result = subprocess.run(
             [sys.executable, "-m", "playwright", "install", "chromium"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=180,
-            check=False,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=240, check=False,
         )
-        return result.returncode == 0, result.stdout[-3000:]
+        output.append(result.stdout[-3000:])
+        return result.returncode == 0, "\n".join(output)
     except Exception as exc:
-        return False, str(exc)
+        output.append(str(exc))
+        return False, "\n".join(output)
 
 
 def run_tony(base_url: str, incidents_url: str, username: str, password: str, response: str, headless: bool, dry_run: bool, max_tickets: int):
     if sync_playwright is None:
-        return {
-            "status": "error",
-            "message": "Playwright is not installed. Run: pip install -r requirements.txt && playwright install chromium",
-            "tickets": [],
-        }
+        ok, install_output = ensure_playwright_package_and_browser()
+        if not ok:
+            return {
+                "status": "error",
+                "message": "Playwright could not be installed at runtime. Check Streamlit terminal logs or deploy with Python 3.12.",
+                "install_output": install_output,
+                "tickets": [],
+            }
 
     base_url = (base_url or "").rstrip("/")
     incidents_url = incidents_url or f"{base_url}/incidents"
@@ -139,7 +155,7 @@ def run_tony(base_url: str, incidents_url: str, username: str, password: str, re
                 args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
             )
         except Exception as launch_exc:
-            ok, install_output = ensure_playwright_browser()
+            ok, install_output = ensure_playwright_package_and_browser()
             if not ok:
                 return {
                     "status": "error",
