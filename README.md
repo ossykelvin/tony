@@ -22,9 +22,17 @@ playwright install chromium
 streamlit run app.py
 ```
 
-## Required environment variables
+## Fix for `Missing KOPDESK_USERNAME or KOPDESK_PASSWORD`
 
-Create `.streamlit/secrets.toml` or set environment variables.
+Create this exact file:
+
+```text
+.streamlit/secrets.toml
+```
+
+Do not leave it as `secrets.toml.example`.
+
+Add your values in this format:
 
 ```toml
 KOPDESK_BASE_URL = "https://kopdesk.koptechnology.com"
@@ -34,9 +42,17 @@ KOPDESK_PASSWORD = "Tester@24680"
 HOLDING_RESPONSE = "Hello, thank you for contacting KOP Desk Support. We have received your incident and our support team is currently reviewing it. We will provide an update as soon as possible."
 ```
 
-## Streamlit Cloud deployment note
+You can also enter the username and password directly in the Streamlit sidebar.
 
-Add the same values under **App settings → Secrets**. If browser automation fails on Streamlit Cloud due to Chromium restrictions, deploy on a VPS, Render, Railway, or a private server where Playwright browsers can be installed.
+## Streamlit Cloud deployment
+
+In Streamlit Cloud, add the same TOML values under:
+
+```text
+App settings → Secrets
+```
+
+Then reboot/redeploy the app.
 
 ## Safety switch
 
